@@ -1,32 +1,57 @@
-<img src="https://raw.githubusercontent.com/ForestMist/logitech-g29/master/images/header.png" width="888" alt="">
+**The original project is no longer maintained. This is a fork with fixes; see [Changes in this fork](#changes-in-this-fork).**
 
 # Logitech G29 Racing Wheel for Node
 
-Bring your [Logitech G29 Racing Wheel](http://gaming.logitech.com/en-us/product/g29-driving-force) into the wonderful world of [Node](https://nodejs.org/en/).
+Bring your Logitech G29 Racing Wheel into the wonderful world of [Node](https://nodejs.org/en/).
 
 * Subscribe to wheel, pedal, and shifter events.
 * Activate simple force feedback effects.
-* Set wheel auto-centering and range.
+* Set wheel auto-centering and range, at connect time or while connected.
 * Customize shift indicator LEDs.
+
+## Changes in this fork
+
+**3.4.0** (every item measured on a G29)
+
+* Added: `forceDamper` takes a value per turning direction (`{left, right}`) and negative values that assist instead of resist.
+* Added: `forceSpring` takes a stiffness per side (`{left, right}`, where `0` means no spring on that side) and a negative stiffness for an anti-spring.
+* Changed: effects are started once and then refreshed, and a report identical to the last one in its slot is not sent again, so streaming a value costs nothing. See [effect slots](docs/api.md#effect-slots).
+* Documented: measured stiffness and damping per step, and that the friction report `0x0e` is a weaker damper on a G29.
+
+**3.3.0**
+
+* Renamed: `forceFriction` is really a damper (resistance grows with turning speed), so it is now [`forceDamper(setting)`](docs/api.md#forcedamper). It takes the same 0 - 1 value with 16 steps instead of 8, plus an optional force limit. `forceFriction` still works unchanged.
+* Added: [`forceSpring(setting)`](docs/api.md#forcespring), a position spring whose center can be anywhere, with an optional dead band.
+* Fixed: `forceOff(3)` stopped slots 1 and 2 and `forceOff(4)` stopped slot 3. Each slot is now stopped on its own; see [effect slots](docs/api.md#effect-slots).
+
+**3.2.0**
+
+* Fixed: the auto-centering stiffness was scaled to 0 - 15, but a G29 only accepts 0 - 7 (15 is the MOMO wheel range) and wraps 8 - 15 back to 0 - 7. Any first value above 0.5 in `autocenter: [x, y]` was therefore weaker than 0.5. Stiffness now maps 0 - 1 to 0 - 7, so `[1, 1]` is the default spring.
+* Fixed: a custom `autocenter` array was scaled in place, so connecting twice with the same options multiplied it again.
+* Added: [`autocenter(setting)`](docs/api.md#autocenter) changes auto-centering while connected, including separate left and right stiffness with `{left, right, force}`.
+* Added: [`range(degrees)`](docs/api.md#range) changes the range while connected.
+* Added: [`autocenterReports(setting)`](docs/api.md#autocenterreports) and hardware-free unit tests (`npm run test:unit`, Node 18+).
 
 ## Requirements
 
-[Node](https://nodejs.org/en/) version 4.0.0 or greater.
+Node version 10.16 or the Node version required by any dependency, whichever is greater.
 
-Make sure your wheel's [platform mode switch](http://support.logitech.com/en_us/article/Set-the-G29-racing-wheel-for-Playstation-4-Playstation-3-or-PC-platforms?product=a0qi0000006PmxKAAS) is set to PS3.
+Set the Logitech G29 mode switch, above the middle of the steering wheel, to **PC** (marked **PS3** on older wheels). In that position the wheel reports USB id `046D:C24F` and speaks the protocol this library uses. The **PS4** / **PS5** position (USB id `046D:C260`) is not supported; on a PC that mode only gets force feedback through Logitech G HUB.
 
 ## Install
 
-This library uses [node-hid](https://github.com/node-hid/node-hid) behind the scenes. If your OS and Node version are listed under [platform support](https://github.com/node-hid/node-hid/blob/master/README.md#platform-support) then you'll have the easiest install experience. If not, you may need to consult node-hid's [compiling from source](https://github.com/node-hid/node-hid#compiling-from-source) guide.
+This library uses node-hid behind the scenes. Depending on your OS and Node version, you may have an effortless install. If not, you may want to consult node-hid's compiling from source guide for assistance.
 
 ```
-npm install logitech-g29
+npm install
 ```
 
-[Ubuntu](http://www.ubuntu.com/desktop) users will most likely want to remove the `sudo` requirement of interfacing with the wheel. This can be easily accomplished by creating a file at `/etc/udev/rules.d/51-logitech-g29.rules` with the following code. After saving the file, reboot and then you can move on to more fun tasks.
+Windows users who are having trouble connecting to a wheel may need to run the Logitech G Hub software one time to setup drivers.
+
+Ubuntu users will most likely want to remove the `sudo` requirement of interfacing with the wheel. This can be accomplished by creating a file at `/etc/udev/rules.d/99-hidraw-permissions.rules` with the following code. After saving the file, reboot and then you can move on to more fun tasks.
 
 ```
-SUBSYSTEM=="usb", ATTR{idVendor}=="046d", ATTR{idProduct}=="c24f", MODE="0666"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", MODE="0664", GROUP="plugdev"
 ```
 
 ## Example
@@ -34,7 +59,7 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="046d", ATTR{idProduct}=="c24f", MODE="0666"
 Let's have some fun and make our wheel LEDs light up when we press the gas pedal.
 
 ```js
-var g = require('logitech-g29')
+const g = require('logitech-g29')
 
 g.connect(function(err) {
     g.on('pedals-gas', function(val) {
@@ -54,26 +79,26 @@ Vroom vroom sounds optional but encouraged. ^\_^
   * [on](docs/api.md#on)
   * [once](docs/api.md#once)
 * [force](docs/api.md#force)
+  * [autocenter](docs/api.md#autocenter)
   * [forceConstant](docs/api.md#forceconstant)
-  * [forceFriction](docs/api.md#forcefriction)
+  * [forceDamper](docs/api.md#forcedamper)
+  * [forceFriction](docs/api.md#forcefriction) (old name of forceDamper)
+  * [forceSpring](docs/api.md#forcespring)
   * [forceOff](docs/api.md#forceoff)
+  * [effect slots](docs/api.md#effect-slots)
 * [leds](docs/api.md#leds)
+* [range](docs/api.md#range)
 * [disconnect](docs/api.md#disconnect)
 * [advanced](docs/api.md#advanced)
+  * [autocenterReports](docs/api.md#autocenterreports)
+  * [damperReports](docs/api.md#damperreports)
+  * [springReports](docs/api.md#springreports)
   * [emitter](docs/api.md#emitter)
   * [relay](docs/api.md#relay)
-
-## Contribute
-
-Looking to contribute? Here are some ideas to get you started.
-
-* [Report any issues](https://github.com/ForestMist/logitech-g29/issues) on GitHub.
-* Contact [Daniel](https://forestmist.org/about/) with improvement ideas and/or send a [pull request](https://github.com/ForestMist/logitech-g29/pulls).
-* Hook up your G29 wheel to something on the internet and wow the IoT community.
-* Share this library with other Logitech loving folks.
-
-Not sure where you can help? Don't worry. Just by using this library, you are making the world a neater place. ^\_^
+  * [relayOS](docs/api.md#relayos)
 
 ## License
 
-MIT © [Daniel Gagan](https://forestmist.org)
+[CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/)
+
+This work has been marked as dedicated to the public domain.
